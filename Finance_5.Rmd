@@ -1,0 +1,236 @@
+---
+title: "Final group project by Finance_5"
+author: "Siri, Chantrika, Aparna, Avinash, Shashi"
+date: "9/15/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+# EFFECT OF DISASTERS ON THE INSURANCE STOCK 
+
+## Github link
+
+https://github.com/ShashiKiran07/daf_proj
+
+## Question of interest
+
+1. How are financial markets reacting to a natural disaster.
+
+2. Capture the movement of the stock of the insurance company on the day of the disaster 
+
+3. Finally calculate the cumulative movement of the stock on different disaster begin dates.
+
+## Short Description:- 
+
+In this project we are considering four datasets, the first dataset is "Disasters", in this dataset we are considering 7 disasters - Fire, Flood, Hurricane, Storms, Severe Ice Storms, Biological and Snow. The second, third and fourth datasets are Stocks data for top 3 listed insurance companies - AllState, Progressive and Travelers. So taking stocks data into consideration we are analyzing how disasters effected the stocks prices from year 2000-present.
+
+## Source:-
+
+**FEMA(Federal Emergency Management Agency) Disaster Declarations Summary** is a summarized data set describing all federally declared disasters. This data set lists all official FEMA Disaster Declarations, beginning with the first disaster declaration in 1953 and features all three disaster declaration types: major disaster, emergency, and fire management assistance. 
+
+'https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries.csv'.
+
+**Yahoo** - This is a media property that is part of Yahoo! network.It provides financial news, data and commentary including stock quotes, press releases, financial reports, and original content.
+
+'https://query1.finance.yahoo.com/v7/finance/download/ALL?period1=944006400&period2=1631664000&interval=1d&events=history&includeAdjustedClose=true'
+
+'https://query1.finance.yahoo.com/v7/finance/download/PGR?period1=944006400&period2=1631664000&interval=1d&events=history&includeAdjustedClose=true'
+
+'https://query1.finance.yahoo.com/v7/finance/download/TRV?period1=944006400&period2=1631664000&interval=1d&events=history&includeAdjustedClose=true'
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Libraries 
+
+We used three R libraries for this project
+
+**tidyverse** and **janitor** is used for cleaning and analyzing the data, while **ggrepel** is used on top of ggplot to produce beautiful visualizations.
+
+```{r importing tidyverse library}
+library(tidyverse)
+library(janitor)
+library(ggrepel)
+```
+
+## Loading Disasters dataset
+
+We are loading the dataset directly from the FEMA api.
+
+```{r disaster dataset}
+disaster_data <- read_csv('https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries.csv')
+```
+## Loading stock datasets
+
+We are using Yahoo finance links to directly load all the stock datasets.
+
+### Loading AllState Stock dataset
+
+```{r AllState dataset}
+allstate_data <- read_csv('https://query1.finance.yahoo.com/v7/finance/download/ALL?period1=944006400&period2=1631664000&interval=1d&events=history&includeAdjustedClose=true')
+
+allstate_data <- subset(allstate_data, select = c("Date","Open","High","Low","Close"))
+
+colnames(allstate_data) <- c("Date", "allstate_open", "allstate_high","allstate_low","allstate_close")
+
+head(allstate_data)
+```
+Selected the columns that are needed for the visualizations and formed a subset using those columns. Renamed the columns according to our convenience
+
+
+### Loading Progressive Stock dataset
+```{r Progressive dataset}
+progressive_data <- read_csv('https://query1.finance.yahoo.com/v7/finance/download/PGR?period1=944006400&period2=1631664000&interval=1d&events=history&includeAdjustedClose=true')
+
+progressive_data <- subset(progressive_data, select = c("Date","Open","High","Low","Close"))
+
+colnames(progressive_data) <- c("Date", "progressive_open", "progressive_high","progressive_low","progressive_close")
+
+head(progressive_data)
+```
+Selected the columns that are needed for the visualizations and formed a subset using those columns. Renamed the columns according to our convenience
+
+
+### Loading travelers Stock dataset
+```{r travelers dataset}
+travelers_data <- read_csv('https://query1.finance.yahoo.com/v7/finance/download/TRV?period1=944006400&period2=1631664000&interval=1d&events=history&includeAdjustedClose=true')
+
+travelers_data <- subset(travelers_data, select = c("Date","Open","High","Low","Close"))
+
+colnames(travelers_data) <- c("Date", "travelers_open", "travelers_high","travelers_low","travelers_close")
+
+head(travelers_data)
+```
+
+Selected the columns that are needed for the visualizations and formed a subset using those columns. Renamed the columns according to our convenience
+
+
+## Cleaning Disaster dataset
+```{r}
+disaster_data <- subset(disaster_data, select = c("incidentType", "state", "declarationType","fyDeclared", "declarationDate", "incidentBeginDate", "incidentEndDate", "disasterCloseoutDate"))
+
+disaster_data <- disaster_data %>%  distinct()
+
+disaster_data$incidentBeginDate = as.Date(disaster_data$incidentBeginDate)
+
+disaster_data <- disaster_data %>% filter(incidentBeginDate>as.Date("2000-01-01"))
+```
+Selected the columns that are needed for the visualizations and formed a subset using those columns. To remove duplicate values distinct() function is used and filtered the values from the year 2000
+
+
+## Combining Disaster and Stock datasets
+
+Joining all the four datasets to get into a single dataset, we are left joining all the datasets on the basis of dates on which the disasters occurred.
+
+```{r join_data}
+disaster_stock_data <- disaster_data %>% 
+  left_join(allstate_data, by=c("incidentBeginDate" = "Date")) %>%
+  left_join(progressive_data, by=c("incidentBeginDate" = "Date"))%>%
+  left_join(travelers_data, by=c("incidentBeginDate" = "Date"))%>%
+  na.omit((disaster_data_all))
+
+disaster_stock_data
+```
+
+We are using the tabyl function in janitor package to find out how many times each disaster occurred in the timeframe we considered i.e (2000-present) and what is its percentage of occurrence. Also we are only considering the disasters that occurred more than 50 times for our project.
+
+```{r}
+# library(janitor)
+
+no_of_disasters <- tabyl(disaster_data,incidentType) %>% 
+  filter(n >50) %>% arrange(desc(n))
+no_of_disasters
+```
+
+Till now we have loaded the datasets and filtered the data according to our suitability, now we find out the Number of Disasters that occurred in each year and try to visualize the trend.
+
+```{r}
+
+count_incidents <- disaster_data %>% group_by(fyDeclared)%>%  summarise(number = n())
+
+count_incidents
+```
+
+We're plotting a line chart to give us a better understanding of the occurrence of disasters in each year.
+
+```{r}
+ggplot(data=count_incidents, aes(x=fyDeclared, y = number))+ ggtitle("Total disasters occured in each year")+
+    geom_line(color = "blue", linetype = 2)
+```
+
+Visualization to plot the distribution of the disasters in the US from 2000 - Present
+
+```{r piechart}
+# library(ggrepel)
+ggplot(no_of_disasters %>% arrange(desc(n)), aes(x="", y=n, fill=incidentType ,inherit.aes = FALSE)) +
+ geom_bar(stat="identity", width=1, color="white") +
+ coord_polar("y", start=0) +
+ theme_void() + ggtitle("Distribution of natural disasters: 2000 - now")
+```
+
+# Impact of natural disasters on the stocks of the three insurance Companies we chose
+
+Here we are calculating the movement of the stock on the day of occurrence of each disaster. In addition to that we are also calculating the minimum dip or rise of the three stocks. 
+
+```{r}
+disaster_stock_data<- disaster_stock_data %>% mutate(dip_allstate = allstate_close - allstate_open)
+
+disaster_stock_data<- disaster_stock_data %>% mutate(dip_progressive = progressive_close- progressive_open )
+
+disaster_stock_data<-disaster_stock_data %>% mutate(dip_travelers = travelers_close - travelers_open)
+
+disaster_stock_data <- disaster_stock_data %>% mutate(dip = apply(disaster_stock_data[,c('dip_allstate','dip_progressive','dip_travelers')], 1, min, na.rm = TRUE))
+
+glimpse(disaster_stock_data)
+
+```
+
+Here we are creating the dataset mean_dip_rise which contains the mean dip or rise of a particular stock depending on the disaster, we are then joining that dataset with the no_of_disasters dataset we created which contains the total number of each disasters that occurred in the timeframe. 
+
+```{r}
+mean_dip_rise <- disaster_stock_data %>% filter(incidentType == c('Fire','Flood','Hurricane','Severe Storm(s)','Snow'))%>% group_by(incidentType) %>% summarise(mean_as = mean(dip_allstate), mean_tr = mean(dip_travelers), mean_pro = mean(dip_progressive))
+
+no_of_disasters <- full_join(no_of_disasters, mean_dip_rise)
+
+no_of_disasters
+```
+```{r}
+summ_p <- pivot_longer(no_of_disasters,cols = c('mean_as','mean_tr','mean_pro'))
+
+ggplot(summ_p, aes(fill=name, y=value, x=incidentType)) + 
+    geom_bar(position="stack", stat="identity") + ggtitle("Insurance Stock reactions to Disasters") + theme(legend.position="right",
+          axis.text.x = element_text(angle = 90))
+
+```
+
+## Basic Linear Model of the data
+
+We ran a multiple linear regression model for our data using the mean dips or rises in the stock value to predict the number of disasters, but because of the limitations in our data we ended up with a high error. An advanced model can be used in the future to get more accurate results.
+
+```{r}
+model <- lm(formula = n ~ mean_as+mean_tr+ mean_pro, data = no_of_disasters)
+
+summary(model)
+```
+
+## Conclusions:-
+1. During Fire and Hurricane insurance companies gain profit. 
+2. When floods, severe storms and snow occurred stocks of Progressive increased.
+3. Allstate was affected the most by natural disasters.
+4. Insurance companies took better measures against fire and severe storms.
+
+## Bias:-
+* We considered the disasters that occurred more than 50 times. What about the other natural disasters ?
+* Weekends are not considered as the stock markets are closed on weekends.
+* National holidays are also not considered.
+* Data was lost during cleaning.
+
+## Extension
+* Can we deduce why some natural disasters affected particular companies differently?
+  1. Flood - Progressive
+  2. Severe storm(s) - Allstate
+  3. Snow - Travelers
+* Can we find out the best insurance company based on geographic data?
+
+
+
